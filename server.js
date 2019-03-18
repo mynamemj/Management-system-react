@@ -1,3 +1,4 @@
+const fs = require('fs');
 const express = require("express");
 const bodyParser = require("body-parser");
 const app = express();
@@ -10,28 +11,48 @@ app.use(bodyParser.urlencoded({extended:true}));
 app.get('/api/hello',(req,res)=> {
     res.send({message : 'JHello Express!'});
 });
+const data = fs.readFileSync('./database.json');
+const conf = JSON.parse(data);
+const mysql = require('mysql');
 
+const connection = mysql.createConnection({
+    host:conf.host,
+    user:conf.user,
+    password:conf.password,
+    port:conf.port,
+    database:conf.database
+});
+connection.connect();
 app.get('/api/customers',(req,res)=>{
-    res.send(
-        [{
-        'id':1,
-        'image':'https://placeimg.com/64/64/any',
-        'name':'명제',
-        'birthday':'940707',
-        'gender':'남자',
-        'job':'대학생'
-      
-      },
-      {
-        'id':2,
-        'image':'https://placeimg.com/64/64/any',
-        'name':'초림',
-        'birthday':'970412',
-        'gender':'여자',
-        'job':'간호사'
-      
-      }]
+    connection.query("SELECT * FROM CUSTOMER WHERE isDeleted = 0",(err,rows,fields)=>{
+        // console.log(rows)
+        res.send(rows); } 
       );
 });
+const multer=require('multer');
+const upload=multer({dest:'./upload'});
+app.use('/image',express.static('./upload'));
+app.post('/api/customerss',upload.single('image'),(req,res)=>{
+    let sql="INSERT INTO CUSTOMER VALUES (null,?,?,?,?,?,now(),0)";
+    let image='/image/'+req.file.filename
+    let name=req.body.name;
+    let birthday=req.body.birthday;
+    let gender=req.body.gender;
+    let job=req.body.job;
+    let params=[image,name,birthday,gender,job];
+    connection.query(sql,params,(err,rows,fields)=>{
+        console.log(err);
+        console.log(rows);
+        
+        res.send(rows);
+    })
+})
 
+app.delete('/api/customers/:id',(req,res)=>{
+    let sql = 'UPDATE CUSTOMER SET isDeleted = 1 WHERE id = ?';
+    let params= [req.params.id];
+    connection.query(sql,params,(err,rows,fields)=>{
+        res.send(rows);
+    })
+})
 app.listen(port,()=>{console.log(`Listening on port ${port}`);});
